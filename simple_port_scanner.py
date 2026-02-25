@@ -1,38 +1,72 @@
 import socket
+import sys
+import threading
+from datetime import datetime
 
-def scan_ports(target, start_port, end_port):
-    print(f"\nScanning target: {target}")
-    print("-" * 40)
+
+def resolve_target(target):
+    try:
+        return socket.gethostbyname(target)
+    except socket.gaierror:
+        print("Unable to resolve hostname.")
+        sys.exit()
+
+
+def scan_port(target_ip, port):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
+
+        result = s.connect_ex((target_ip, port))
+
+        if result == 0:
+            try:
+                s.send(b"Hello\r\n")
+                banner = s.recv(1024).decode().strip()
+                if banner == "":
+                    banner = "Unknown Service"
+            except:
+                banner = "Unknown Service"
+
+            print(f"[OPEN] Port {port} | Service: {banner}")
+
+        s.close()
+
+    except:
+        pass
+
+
+def main():
+    if len(sys.argv) != 4:
+        print("Usage: python simple_threaded_scanner.py <target> <start_port> <end_port>")
+        sys.exit()
+
+    target = sys.argv[1]
+    start_port = int(sys.argv[2])
+    end_port = int(sys.argv[3])
+
+    target_ip = resolve_target(target)
+
+    print("-" * 50)
+    print(f"Scanning Target: {target} ({target_ip})")
+    print(f"Port Range: {start_port} - {end_port}")
+    print("Started at:", datetime.now())
+    print("-" * 50)
+
+    threads = []
 
     for port in range(start_port, end_port + 1):
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.5)
+        t = threading.Thread(target=scan_port, args=(target_ip, port))
+        threads.append(t)
+        t.start()
 
-            result = s.connect_ex((target, port))
+    for t in threads:
+        t.join()
 
-            if result == 0:
-                print(f"Port {port} is OPEN")
-
-            s.close()
-
-        except KeyboardInterrupt:
-            print("\nScanning stopped by user.")
-            break
-        except socket.gaierror:
-            print("Hostname could not be resolved.")
-            break
-        except socket.error:
-            print("Could not connect to server.")
-            break
-
-    print("\nScanning completed.")
+    print("-" * 50)
+    print("Scanning Completed at:", datetime.now())
+    print("-" * 50)
 
 
-# ===== Main Program =====
 if __name__ == "__main__":
-    target_ip = input("Enter target IP address (e.g., 127.0.0.1): ")
-    start = int(input("Enter starting port: "))
-    end = int(input("Enter ending port: "))
-
-    scan_ports(target_ip, start, end)
+    main()
